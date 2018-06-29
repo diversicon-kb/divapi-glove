@@ -55,8 +55,8 @@ public class GloVeAdaptor implements IDivAPI {
 
     @Override
     public Set<WordRelation> getRelations(String language, Domain domain, String word1, String word2) {
-        Map<WordRelation, Double> relMap = getRelationsWeighted(language, domain, word1, word2);
         Set<WordRelation> relSet = new HashSet<>();
+        Map<WordRelation, Double> relMap = getRelationsWeighted(language, domain, word1, word2);
         for(WordRelation rel : relMap.keySet()) {
             if (relMap.get(rel) < threshold) {
                 relSet.add(rel);
@@ -188,7 +188,7 @@ public class GloVeAdaptor implements IDivAPI {
     }
 
     @Override
-    public Set<String> getLanguages(Domain domain, Concept concept) {
+    public Set<String> getLanguages(Concept concept) {
         throw new UnsupportedOperationException("Not supported yet."); 
     }
 

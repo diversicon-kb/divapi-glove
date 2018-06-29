@@ -3,14 +3,14 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>eu.kidf.divapi</groupId>
     <artifactId>divapi-glove</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>0.9.1-SNAPSHOT</version>
     <packaging>jar</packaging>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
 
-        <divapi.version>0.9.0</divapi.version>
+        <divapi.version>0.9.1</divapi.version>
         <jungblut.glove.version>0.4-SNAPSHOT</jungblut.glove.version>
     </properties>
 
