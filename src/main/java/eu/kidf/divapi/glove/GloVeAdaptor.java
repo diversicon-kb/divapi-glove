@@ -1,18 +1,29 @@
 package eu.kidf.divapi.glove;
 
+import de.jungblut.datastructure.KDTree;
+import de.jungblut.datastructure.KDTree.VectorDistanceTuple;
 import de.jungblut.distance.CosineDistance;
 import de.jungblut.glove.GloveRandomAccessReader;
 import de.jungblut.glove.impl.GloveBinaryRandomAccessReader;
+import de.jungblut.glove.impl.GloveBinaryReader;
+import de.jungblut.glove.util.StringVectorPair;
 import de.jungblut.math.DoubleVector;
 import eu.kidf.divapi.Concept;
 import eu.kidf.divapi.Domain;
 import eu.kidf.divapi.IDivAPI;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 
 /**
@@ -25,32 +36,94 @@ import java.util.Set;
 public class GloVeAdaptor implements IDivAPI {
     
     private final Double DEFAULT_RELATEDNESS_THRESHOLD = 0.70;
+    private final int DEFAULT_MAX_RELATED_WORDS = 10;
     
     private final GloveRandomAccessReader dic;
-    private Double threshold;
+    /* tree to compute nearest neighbours */
+    final KDTree<String> tree = new KDTree<>();
+    private Double threshold = DEFAULT_RELATEDNESS_THRESHOLD;
     
-    public GloVeAdaptor(String pathToResource, Double threshold) throws IOException {
-        this(pathToResource);
-        this.threshold = threshold; 
+    public GloVeAdaptor(String pathToResource) throws IOException {
+        this(pathToResource, false);
     }
 
-    public GloVeAdaptor(String pathToResource) throws IOException {
+    public GloVeAdaptor(String pathToResource, boolean computeNeighbourTree) throws IOException {
+        Path path = Paths.get(pathToResource);
         try {
-            dic = new GloveBinaryRandomAccessReader(Paths.get(pathToResource));
-            threshold = DEFAULT_RELATEDNESS_THRESHOLD;
+            dic = new GloveBinaryRandomAccessReader(path);
         } catch (Exception e) {
             throw e;
-        }        
+        }
+        if (!computeNeighbourTree) {
+            return;
+        }
+        try (Stream<StringVectorPair> stream = new GloveBinaryReader().stream(path)) {
+            Iterator<StringVectorPair> iter = stream.iterator();
+            while(iter.hasNext()) {
+                StringVectorPair pair = iter.next();
+                tree.add(pair.vector, pair.value);
+            }
+        }
     }
 
+    public void setThreshold(Double threshold) {
+        this.threshold = threshold; 
+    }
+    
+    public Collection<String> getRelatedWords(String language, Domain domain, String word, WordRelation rel, int maxWords) {
+        if (tree.size() == 0) {
+            throw new UnsupportedOperationException("Related words can only be computed "
+                    + "if the nearest neighbour tree is computed at construction time. "
+                    + "To do so, please call the constructor with the argument "
+                    + "computeNeighbourTree = true.");
+        }
+        List<String> relWords = new ArrayList<>();
+
+        List<VectorDistanceTuple<String>> nearestNeighbours = getNearestNeighbours(word, maxWords);
+
+        for (VectorDistanceTuple<String> t : nearestNeighbours) {
+            relWords.add(t.getValue());
+        }
+        return relWords;
+    }
+
+    private List<VectorDistanceTuple<String>> getNearestNeighbours(String word, int maxWords) {
+        DoubleVector v;
+        try {
+            v = dic.get(word);
+        } catch(Exception e) {
+            return new ArrayList<>();
+        }
+        if (v == null) {
+            return new ArrayList<>();
+        }
+
+        // "maxWords + 1" because we will be removing from the result
+        // the input word itself that will also be found
+        List<VectorDistanceTuple<String>> nearestNeighbours = tree.getNearestNeighbours(v, maxWords + 1);
+
+        // sort and remove the one that we searched for
+        Collections.sort(nearestNeighbours, Collections.reverseOrder());
+        // the best hit is usually the same item with distance 0
+        if (nearestNeighbours.get(0).getValue().equals(word)) {
+          nearestNeighbours.remove(0);
+        }
+        return nearestNeighbours;
+    }
+    
     @Override
-    public Set<String> getRelatedWords(String language, Domain domain, String word, WordRelation rel) {
-        throw new UnsupportedOperationException("Not supported yet."); 
+    public Collection<String> getRelatedWords(String language, Domain domain, String word, WordRelation rel) {
+        return getRelatedWords(language, domain, word, rel, DEFAULT_MAX_RELATED_WORDS);
     }
 
     @Override
     public Map<String, Double> getRelatedWordsWeighted(String language, Domain domain, String word, WordRelation rel) {
-        throw new UnsupportedOperationException("Not supported yet."); 
+        Map<String, Double> wordMap = new HashMap<>();
+        List<VectorDistanceTuple<String>> nearestNeighbours = getNearestNeighbours(word, DEFAULT_MAX_RELATED_WORDS);
+        for (VectorDistanceTuple<String> t : nearestNeighbours) {
+            wordMap.put(t.getValue(), t.getDistance());
+        }
+        return wordMap;
     }
 
     @Override
